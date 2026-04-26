@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escala de Coroinhas - Oficial</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #1a5f7a; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; transition: 0.2s; }
+        .btn-save { background: #1a5f7a; color: white; }
+        .btn-save:hover { background: #134559; }
+        .btn-admin { background: #6c757d; color: white; margin-top: 25px; }
+        
+        #areaAdmin { display: none; margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #f8f9fa; }
+        .aviso { color: #d9534f; font-size: 0.85em; }
+        .sucesso { color: #5cb85c; font-weight: bold; }
+        .btn-limpar { background: #d9534f; color: white; font-size: 12px; padding: 5px; width: auto; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>⛪ Disponibilidade</h1>
+    
+    <div class="form-group">
+        <label>Seu Nome:</label>
+        <input type="text" id="nomeCoroinha" placeholder="Nome completo">
+    </div>
+    
+    <div class="form-group">
+        <label>Escolha o dia:</label>
+        <input type="date" id="dataEscolhida">
+    </div>
+    
+    <button class="btn-save" id="btnEnviar" onclick="cadastrar()">Enviar Disponibilidade</button>
+
+    <button class="btn-admin" onclick="acessarAdmin()">⚙️ Painel do Administrador</button>
+
+    <div id="areaAdmin">
+        <h2>Escala Gerada</h2>
+        <button class="btn-limpar" onclick="limparTudo()">Limpar todos os dados</button>
+        <div id="tabelaEscala">Carregando dados...</div>
+    </div>
+</div>
+
+<script>
+    // --- CONFIGURAÇÃO SUPABASE ---
+    const SUPABASE_URL = 'https://tkzownbhngqzljkrgbsl.supabase.co'; 
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrem93bmJobmdxemxqa3JnYnNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNDA1OTQsImV4cCI6MjA5MjcxNjU5NH0.CYgFZPaxKM42AxvLVR-l_seslD0KBtta1Lwj00Ni4Wg';
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const SENHA_ADMIN = "1234";
+
+    // Função para salvar no Supabase
+    async function cadastrar() {
+        const nome = document.getElementById('nomeCoroinha').value.trim();
+        const data = document.getElementById('dataEscolhida').value;
+        const btn = document.getElementById('btnEnviar');
+
+        if (!nome || !data) {
+            alert("Preencha todos os campos!");
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerText = "Enviando...";
+
+        const { error } = await _supabase
+            .from('disponibilidades')
+            .insert([{ nome, data }]);
+
+        if (error) {
+            alert("Erro ao salvar: " + error.message);
+        } else {
+            alert("Registrado com sucesso!");
+            document.getElementById('nomeCoroinha').value = "";
+            document.getElementById('dataEscolhida').value = "";
+            if (document.getElementById('areaAdmin').style.display === 'block') {
+                desenharEscala();
+            }
+        }
+        
+        btn.disabled = false;
+        btn.innerText = "Enviar Disponibilidade";
+    }
+
+    function acessarAdmin() {
+        const p = prompt("Digite a senha do ADM:");
+        if (p === SENHA_ADMIN) {
+            document.getElementById('areaAdmin').style.display = 'block';
+            desenharEscala();
+        } else {
+            alert("Senha incorreta!");
+        }
+    }
+
+    async function desenharEscala() {
+        // Busca dados do Supabase
+        const { data: lista, error } = await _supabase
+            .from('disponibilidades')
+            .select('*');
+
+        if (error) {
+            document.getElementById('tabelaEscala').innerHTML = "Erro ao carregar dados.";
+            return;
+        }
+
+        const agora = new Date();
+        const ano = agora.getFullYear();
+        const mes = agora.getMonth();
+        const totalDias = new Date(ano, mes + 1, 0).getDate();
+
+        let html = "<table><tr><th>Data</th><th>Coroinha(s)</th></tr>";
+
+        for (let i = 1; i <= totalDias; i++) {
+            // Formata a data para comparar com o formato do banco (YYYY-MM-DD)
+            const diaFormatado = String(i).padStart(2, '0');
+            const mesFormatado = String(mes + 1).padStart(2, '0');
+            const dataLoop = `${ano}-${mesFormatado}-${diaFormatado}`;
+            
+            const pessoasNoDia = lista.filter(item => item.data === dataLoop);
+            
+            let nomes = pessoasNoDia.length > 0 
+                ? `<span class="sucesso">${pessoasNoDia.map(p => p.nome).join(", ")}</span>` 
+                : `<span class="aviso">Ninguém disponível</span>`;
+
+            html += `<tr><td>${i}/${mes + 1}</td><td>${nomes}</td></tr>`;
+        }
+
+        html += "</table>";
+        document.getElementById('tabelaEscala').innerHTML = html;
+    }
+
+    async function limparTudo() {
+        if (confirm("Isso apagará TODOS os dados do banco de dados. Confirma?")) {
+            const { error } = await _supabase
+                .from('disponibilidades')
+                .delete()
+                .neq('id', 0); // Deleta tudo onde ID não é 0
+
+            if (error) alert("Erro ao limpar: " + error.message);
+            desenharEscala();
+        }
+    }
+</script>
+
+</body>
+</html>
